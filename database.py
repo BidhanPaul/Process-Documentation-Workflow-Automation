@@ -82,6 +82,7 @@ DATA_KEY_TO_TABLE = {
 
 def init_db(db_path):
     conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
     conn.commit()
     return conn
@@ -89,6 +90,10 @@ def init_db(db_path):
 
 def load_dataset(conn, dataset):
     cur = conn.cursor()
+    # A pipeline run is a complete snapshot. Remove rows from the previous
+    # snapshot before loading so reruns cannot leave stale records behind.
+    for table in reversed(tuple(DATA_KEY_TO_TABLE.values())):
+        cur.execute(f"DELETE FROM {table}")
     for data_key, table in DATA_KEY_TO_TABLE.items():
         rows = dataset.get(data_key, [])
         if not rows:

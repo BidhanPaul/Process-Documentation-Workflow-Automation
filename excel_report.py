@@ -312,6 +312,10 @@ def build_workbook(frames, monthly_df, dept_df, output_path, generated_label="")
     n_off = row_counts["Offers"]
     n_ord = row_counts["Orders"]
     n_chg = row_counts["OrderChanges"]
+    req_end = max(n_req + 1, 2)
+    off_end = max(n_off + 1, 2)
+    ord_end = max(n_ord + 1, 2)
+    chg_end = max(n_chg + 1, 2)
 
     req_status_col = "F"
     ord_status_col = "E"
@@ -342,11 +346,11 @@ def build_workbook(frames, monthly_df, dept_df, output_path, generated_label="")
     labels = ["Total Requests", "Approval Rate", "Total Orders", "Order Value (EUR)", "Avg Man-Days/Order"]
     subs = ["Service requests logged", "Procurement approval", "Orders placed", "Total contracted value", "Avg effort per order"]
     values = [
-        f"=SUBTOTAL(103,ServiceRequests!A2:A{n_req+1})",
-        f'=1-(COUNTIF(ServiceRequests!{req_status_col}2:{req_status_col}{n_req+1},"REJECTED")/SUBTOTAL(103,ServiceRequests!A2:A{n_req+1}))',
-        f"=SUBTOTAL(103,Orders!A2:A{n_ord+1})",
-        f"=SUM(Orders!F2:F{n_ord+1})",
-        f"=AVERAGE(Orders!G2:G{n_ord+1})",
+        f"=SUBTOTAL(103,ServiceRequests!A2:A{req_end})",
+        f'=IFERROR(1-(COUNTIF(ServiceRequests!{req_status_col}2:{req_status_col}{req_end},"REJECTED")/SUBTOTAL(103,ServiceRequests!A2:A{req_end})),0)',
+        f"=SUBTOTAL(103,Orders!A2:A{ord_end})",
+        f"=SUM(Orders!F2:F{ord_end})",
+        f"=IFERROR(AVERAGE(Orders!G2:G{ord_end}),0)",
     ]
     formats = [None, "0.0%", None, CURRENCY_FMT, "0.0"]
 
@@ -369,19 +373,19 @@ def build_workbook(frames, monthly_df, dept_df, output_path, generated_label="")
             c2.number_format = fmt
 
     r = detail_row + 1
-    metric_line(r, "Requests completed", f'=COUNTIF(ServiceRequests!{req_status_col}2:{req_status_col}{n_req+1},"COMPLETED")'); r += 1
-    metric_line(r, "Requests expired (no offers)", f'=COUNTIF(ServiceRequests!{req_status_col}2:{req_status_col}{n_req+1},"EXPIRED")'); r += 1
-    metric_line(r, "Total offers received", f"=SUBTOTAL(103,Offers!A2:A{n_off+1})"); r += 1
-    metric_line(r, "Avg offers per request", f"=D{r-1}/SUBTOTAL(103,ServiceRequests!A2:A{n_req+1})", "0.0"); r += 1
-    metric_line(r, "Avg bidding window (days)", f"=AVERAGE(ServiceRequests!G2:G{n_req+1})", "0.0"); r += 1
-    metric_line(r, "Orders approved", f'=COUNTIF(Orders!{ord_status_col}2:{ord_status_col}{n_ord+1},"APPROVED")'); r += 1
-    metric_line(r, "Order approval rate", f"=D{r-1}/SUBTOTAL(103,Orders!A2:A{n_ord+1})", "0.0%"); r += 1
+    metric_line(r, "Requests completed", f'=COUNTIF(ServiceRequests!{req_status_col}2:{req_status_col}{req_end},"COMPLETED")'); r += 1
+    metric_line(r, "Requests expired (no offers)", f'=COUNTIF(ServiceRequests!{req_status_col}2:{req_status_col}{req_end},"EXPIRED")'); r += 1
+    metric_line(r, "Total offers received", f"=SUBTOTAL(103,Offers!A2:A{off_end})"); r += 1
+    metric_line(r, "Avg offers per request", f"=IFERROR(D{r-1}/SUBTOTAL(103,ServiceRequests!A2:A{req_end}),0)", "0.0"); r += 1
+    metric_line(r, "Avg bidding window (days)", f"=IFERROR(AVERAGE(ServiceRequests!G2:G{req_end}),0)", "0.0"); r += 1
+    metric_line(r, "Orders approved", f'=COUNTIF(Orders!{ord_status_col}2:{ord_status_col}{ord_end},"APPROVED")'); r += 1
+    metric_line(r, "Order approval rate", f"=IFERROR(D{r-1}/SUBTOTAL(103,Orders!A2:A{ord_end}),0)", "0.0%"); r += 1
     if n_chg:
-        metric_line(r, "Total change requests", f"=SUBTOTAL(103,OrderChanges!A2:A{n_chg+1})"); r += 1
-        metric_line(r, "Substitutions", f'=COUNTIF(OrderChanges!{chg_type_col}2:{chg_type_col}{n_chg+1},"SUBSTITUTION")'); r += 1
-        metric_line(r, "Extensions", f'=COUNTIF(OrderChanges!{chg_type_col}2:{chg_type_col}{n_chg+1},"EXTENSION")'); r += 1
+        metric_line(r, "Total change requests", f"=SUBTOTAL(103,OrderChanges!A2:A{chg_end})"); r += 1
+        metric_line(r, "Substitutions", f'=COUNTIF(OrderChanges!{chg_type_col}2:{chg_type_col}{chg_end},"SUBSTITUTION")'); r += 1
+        metric_line(r, "Extensions", f'=COUNTIF(OrderChanges!{chg_type_col}2:{chg_type_col}{chg_end},"EXTENSION")'); r += 1
         metric_line(r, "Change approval rate",
-                     f'=COUNTIF(OrderChanges!{chg_status_col}2:{chg_status_col}{n_chg+1},"APPROVED")/SUBTOTAL(103,OrderChanges!A2:A{n_chg+1})',
+                     f'=IFERROR(COUNTIF(OrderChanges!{chg_status_col}2:{chg_status_col}{chg_end},"APPROVED")/SUBTOTAL(103,OrderChanges!A2:A{chg_end}),0)',
                      "0.0%"); r += 1
 
     chart_col = 17
@@ -395,7 +399,7 @@ def build_workbook(frames, monthly_df, dept_df, output_path, generated_label="")
         row = status_hdr_row + i
         dash.cell(row=row, column=chart_col, value=status).font = BASE_FONT
         dash.cell(row=row, column=chart_col + 1,
-                  value=f'=COUNTIF(ServiceRequests!{req_status_col}2:{req_status_col}{n_req+1},{get_column_letter(chart_col)}{row})').font = BASE_FONT
+                  value=f'=COUNTIF(ServiceRequests!{req_status_col}2:{req_status_col}{req_end},{get_column_letter(chart_col)}{row})').font = BASE_FONT
 
     pie = PieChart()
     data_ref = Reference(dash, min_col=chart_col + 1, min_row=status_hdr_row, max_row=status_hdr_row + len(statuses))
@@ -426,8 +430,14 @@ def add_provider_sheet(wb_path, provider_df):
     wb = load_workbook(wb_path)
     ws = wb.create_sheet("ProviderPerformance")
     _style_table_sheet(ws, provider_df, "tbl_ProviderPerformance", "ProviderPerformance")
+    n = len(provider_df)
+    if not n:
+        ws["A2"] = "No provider performance data available for this run."
+        wb.save(wb_path)
+        return wb_path
+
     ws.conditional_formatting.add(
-        f"D2:D{len(provider_df)+1}",
+        f"D2:D{n + 1}",
         DataBarRule(start_type="min", end_type="max", color=TEAL)
     )
     chart = BarChart()
@@ -435,7 +445,6 @@ def add_provider_sheet(wb_path, provider_df):
     chart.title = "Provider Win Rate (%)"
     chart.y_axis.title = "Win rate %"
     chart.style = 11
-    n = len(provider_df)
     data_ref = Reference(ws, min_col=5, min_row=1, max_row=n + 1)
     cats_ref = Reference(ws, min_col=1, min_row=2, max_row=n + 1)
     chart.add_data(data_ref, titles_from_data=True)

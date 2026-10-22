@@ -30,6 +30,8 @@ OUTPUT_DIR = "output"
 
 
 def run(api_url=None, n_requests=180):
+    if n_requests < 0:
+        raise ValueError("n_requests must be non-negative")
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     db_path = os.path.join(OUTPUT_DIR, "process.db")
     xlsx_path = os.path.join(OUTPUT_DIR, "IT_Process_KPI_Report.xlsx")
@@ -40,30 +42,32 @@ def run(api_url=None, n_requests=180):
 
     print("[2/5] Loading into SQLite...")
     conn = init_db(db_path)
-    load_dataset(conn, dataset)
+    try:
+        load_dataset(conn, dataset)
 
-    print("[3/5] Computing KPIs...")
-    frames = load_frames(conn)
-    status_df = request_status_breakdown(conn)
-    approval_df = approval_rate(conn)
-    cycle_df, req_with_times, orders_with_times = cycle_times(frames)
-    provider_df = provider_performance(frames)
-    change_df = order_change_summary(frames)
-    breaches_df = sla_breaches(req_with_times)
-    monthly_df = monthly_volume(frames)
-    dept_df = department_breakdown(conn)
+        print("[3/5] Computing KPIs...")
+        frames = load_frames(conn)
+        status_df = request_status_breakdown(conn)
+        approval_df = approval_rate(conn)
+        cycle_df, req_with_times, orders_with_times = cycle_times(frames)
+        provider_df = provider_performance(frames)
+        change_df = order_change_summary(frames)
+        breaches_df = sla_breaches(req_with_times)
+        monthly_df = monthly_volume(frames)
+        dept_df = department_breakdown(conn)
 
-    print("[4/5] Building Excel report...")
-    generated_label = datetime.now().strftime("%d %b %Y, %H:%M")
-    build_workbook(frames, monthly_df, dept_df, xlsx_path, generated_label=generated_label)
-    add_provider_sheet(xlsx_path, provider_df)
+        print("[4/5] Building Excel report...")
+        generated_label = datetime.now().strftime("%d %b %Y, %H:%M")
+        build_workbook(frames, monthly_df, dept_df, xlsx_path, generated_label=generated_label)
+        add_provider_sheet(xlsx_path, provider_df)
 
-    print("[5/5] Generating stakeholder summary...")
-    generate_summary(frames, status_df, approval_df, cycle_df, provider_df,
-                      change_df, breaches_df, summary_path)
+        print("[5/5] Generating stakeholder summary...")
+        generate_summary(frames, status_df, approval_df, cycle_df, provider_df,
+                          change_df, breaches_df, summary_path)
 
-    print(f"\nDone.\n  Database: {db_path}\n  Excel report: {xlsx_path}\n  Summary: {summary_path}")
-    conn.close()
+        print(f"\nDone.\n  Database: {db_path}\n  Excel report: {xlsx_path}\n  Summary: {summary_path}")
+    finally:
+        conn.close()
     return xlsx_path, summary_path
 
 

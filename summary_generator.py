@@ -8,9 +8,10 @@ def generate_summary(frames, status_df, approval_df, cycle_df, provider_df, chan
     total_requests = len(frames["requests"])
     total_offers = len(frames["offers"])
     total_orders = len(frames["orders"])
-    approval_rate_pct = approval_df["approval_rate_pct"].iloc[0]
-    top_status = status_df.iloc[0]
-    slowest_stage = cycle_df.loc[cycle_df["avg_days"].idxmax()]
+    approval_rate_pct = approval_df["approval_rate_pct"].iloc[0] if not approval_df.empty else 0
+    top_status = status_df.iloc[0] if not status_df.empty else None
+    valid_cycle = cycle_df.dropna(subset=["avg_days"]) if not cycle_df.empty else cycle_df
+    slowest_stage = valid_cycle.loc[valid_cycle["avg_days"].idxmax()] if not valid_cycle.empty else None
     top_provider = provider_df.iloc[0] if not provider_df.empty else None
     n_breaches = len(breaches_df)
 
@@ -23,17 +24,25 @@ def generate_summary(frames, status_df, approval_df, cycle_df, provider_df, chan
         f"- **{total_requests}** service requests processed, generating **{total_offers}** provider offers "
         f"and **{total_orders}** orders placed.\n"
         f"- Procurement approval rate stands at **{approval_rate_pct}%**.\n"
-        f"- The most common current status is **{top_status['status']}** "
-        f"({top_status['pct_of_total']}% of all requests).\n"
     )
+    if top_status is not None:
+        lines.append(
+            f"- The most common current status is **{top_status['status']}** "
+            f"({top_status['pct_of_total']}% of all requests).\n"
+        )
+    else:
+        lines.append("- No service requests were recorded in this run.\n")
 
     lines.append("## Process Cycle Time")
-    lines.append(
-        f"- Slowest stage: **{slowest_stage['stage']}**, averaging **{slowest_stage['avg_days']} days** "
-        f"(max observed: {slowest_stage['max_days']} days).\n"
-    )
-    for _, row in cycle_df.iterrows():
-        lines.append(f"  - {row['stage']}: avg {row['avg_days']}d, max {row['max_days']}d")
+    if slowest_stage is not None:
+        lines.append(
+            f"- Slowest stage: **{slowest_stage['stage']}**, averaging **{slowest_stage['avg_days']} days** "
+            f"(max observed: {slowest_stage['max_days']} days).\n"
+        )
+        for _, row in valid_cycle.iterrows():
+            lines.append(f"  - {row['stage']}: avg {row['avg_days']}d, max {row['max_days']}d")
+    else:
+        lines.append("- No completed process stages were recorded in this run.")
     lines.append("")
 
     lines.append("## Control Deviations")
@@ -78,7 +87,7 @@ def generate_summary(frames, status_df, approval_df, cycle_df, provider_df, chan
     recs = []
     if n_breaches > total_requests * 0.1:
         recs.append("Investigate root cause of SLA breaches in Procurement review — over 10% of requests are affected.")
-    if slowest_stage["stage"].startswith("Bidding"):
+    if slowest_stage is not None and slowest_stage["stage"].startswith("Bidding"):
         recs.append("Review whether default bidding windows are longer than necessary for low-complexity requests.")
     if top_provider is not None and top_provider["win_rate_pct"] < 20:
         recs.append("No single provider dominates bidding — healthy competitive spread, worth monitoring for consolidation risk.")
