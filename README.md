@@ -95,7 +95,7 @@ Every arrow corresponds to something the analytics layer actually measures: cycl
 ## Features
 
 **Ingestion & storage**
-- Live REST ingestion (`requests`) with real error handling, or a synthetic fallback matching the exact production schema
+- Live REST ingestion (`requests`) with payload validation and real error handling, or a synthetic fallback matching the exact production schema
 - Normalized SQLite warehouse: `service_requests`, `offers`, `evaluations`, `orders`, `order_changes`
 
 **Analytics** (`analytics.py` — Pandas + SQL)
@@ -104,6 +104,7 @@ Every arrow corresponds to something the analytics layer actually measures: cycl
 - Provider win rate & average evaluation score
 - Order-change (substitution/extension) frequency and resolution time
 - SLA breach detection
+- Data-quality checks for orphaned relationships and missing lifecycle dates
 - Monthly volume trend, department breakdown
 
 **Excel report** (`excel_report.py` — openpyxl)
@@ -163,7 +164,8 @@ using `requests`, with real error handling (timeouts, HTTP errors, connection fa
 ```bash
 git clone https://github.com/BidhanPaul/Process-Documentation-Workflow-Automation.git
 cd Process-Documentation-Workflow-Automation
-pip install -r requirements.txt
+python -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
 ```
 
 Requires Python 3.10+.
@@ -179,6 +181,9 @@ python main.py
 
 # Against a live ServiceManagementSystem deployment
 python main.py --api-url https://your-sms-deployment.example.com --n-requests 250
+
+# Run regression tests
+.venv/bin/python -m unittest discover -s tests -v
 ```
 
 Outputs land in `output/`:
@@ -229,9 +234,9 @@ Python · Pandas · SQLite/SQL · `requests` (REST ingestion) · openpyxl (Excel
 
 ## Known limitations
 
-- Orders/order-change data is always synthetic (no public endpoint exposed yet on the backend)
+- Live mode currently leaves orders/order-change tables empty because the public API does not expose those endpoints; it never mixes unrelated synthetic rows into live data
 - Live-mode ingestion has not been run against a continuously deployed backend instance
-- No automated test suite yet (manual verification via formula recalculation checks)
+- Automated regression tests run with `python -m unittest discover -s tests -v`
 - Desktop app has no packaged executable — run from source
 
 ---

@@ -162,3 +162,26 @@ def department_breakdown(conn):
         GROUP BY r.department
         ORDER BY total_order_value DESC
     """, conn)
+
+
+def data_quality_report(frames):
+    """Return basic referential-integrity and lifecycle completeness checks."""
+    requests = frames["requests"]
+    offers = frames["offers"]
+    evaluations = frames["evaluations"]
+    orders = frames["orders"]
+    changes = frames["order_changes"]
+
+    request_ids = set(requests["request_id"])
+    offer_ids = set(offers["offer_id"])
+    order_ids = set(orders["order_id"])
+    checks = {
+        "orphan_offers": int((~offers["request_id"].isin(request_ids)).sum()),
+        "orphan_evaluations": int((~evaluations["offer_id"].isin(offer_ids)).sum()),
+        "orphan_orders": int((~orders["request_id"].isin(request_ids)).sum()),
+        "orphan_changes": int((~changes["order_id"].isin(order_ids)).sum()),
+        "requests_missing_created_date": int(requests["created_date"].isna().sum()),
+        "orders_missing_created_date": int(orders["created_date"].isna().sum()),
+    }
+    checks["total_warnings"] = sum(checks.values())
+    return checks

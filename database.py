@@ -90,18 +90,22 @@ def init_db(db_path):
 
 def load_dataset(conn, dataset):
     cur = conn.cursor()
-    # A pipeline run is a complete snapshot. Remove rows from the previous
-    # snapshot before loading so reruns cannot leave stale records behind.
-    for table in reversed(tuple(DATA_KEY_TO_TABLE.values())):
-        cur.execute(f"DELETE FROM {table}")
-    for data_key, table in DATA_KEY_TO_TABLE.items():
-        rows = dataset.get(data_key, [])
-        if not rows:
-            continue
-        cols = TABLE_COLUMNS[table]
-        placeholders = ",".join(["?"] * len(cols))
-        cur.executemany(
-            f"INSERT OR REPLACE INTO {table} ({','.join(cols)}) VALUES ({placeholders})",
-            [tuple(row.get(c) for c in cols) for row in rows],
-        )
-    conn.commit()
+    try:
+        # A pipeline run is a complete snapshot. Remove rows from the previous
+        # snapshot before loading so reruns cannot leave stale records behind.
+        for table in reversed(tuple(DATA_KEY_TO_TABLE.values())):
+            cur.execute(f"DELETE FROM {table}")
+        for data_key, table in DATA_KEY_TO_TABLE.items():
+            rows = dataset.get(data_key, [])
+            if not rows:
+                continue
+            cols = TABLE_COLUMNS[table]
+            placeholders = ",".join(["?"] * len(cols))
+            cur.executemany(
+                f"INSERT OR REPLACE INTO {table} ({','.join(cols)}) VALUES ({placeholders})",
+                [tuple(row.get(c) for c in cols) for row in rows],
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise

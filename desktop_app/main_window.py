@@ -110,6 +110,7 @@ class TablePage(QWidget):
         self.proxy = QSortFilterProxyModel()
         self.proxy.setSourceModel(self.model)
         self.proxy.setFilterCaseSensitivity(Qt.CaseInsensitive)
+        self.proxy.setFilterKeyColumn(-1)
         self.table.setModel(self.proxy)
         self.search.textChanged.connect(self.proxy.setFilterFixedString)
 
@@ -399,6 +400,13 @@ class MainWindow(QMainWindow):
                 bar_row.addWidget(count_lbl)
 
                 self.status_layout.addLayout(bar_row)
+            if state.quality.get("total_warnings", 0):
+                warning = QLabel(
+                    f"Data quality: {state.quality['total_warnings']} warning(s) detected. "
+                    "Review the stakeholder summary."
+                )
+                warning.setStyleSheet("color:#D0271D; font-weight:600;")
+                self.status_layout.addWidget(warning)
 
         if state.loaded:
             self.pages["requests"].set_dataframe(state.frames["requests"])

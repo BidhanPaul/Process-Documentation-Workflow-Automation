@@ -28,6 +28,9 @@ class PandasTableModel(QAbstractTableModel):
             if val is None:
                 return ""
             return str(val)
+        if role == Qt.UserRole:
+            val = self._df.iat[index.row(), index.column()]
+            return None if val is None else val
         if role == Qt.BackgroundRole:
             return QColor("#F4F7FB") if index.row() % 2 == 0 else QColor("#FFFFFF")
         if role == Qt.ForegroundRole:

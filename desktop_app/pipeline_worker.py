@@ -21,27 +21,14 @@ class PipelineWorker(QThread):
         try:
             import main as pipeline
 
-            steps = [
-                (20, "Ingesting service request, offer, and evaluation data..."),
-                (40, "Loading into SQLite warehouse..."),
-                (65, "Computing process KPIs (Pandas / SQL)..."),
-                (85, "Building Excel dashboard with live formulas..."),
-                (100, "Generating stakeholder summary..."),
-            ]
             self.log.emit(f"Starting pipeline run (n_requests={self.n_requests})")
             self.progress.emit(5)
-
-            # main.run() executes the full pipeline synchronously; we surface
-            # coarse progress markers around it for a responsive feel.
-            for pct, msg in steps[:2]:
-                self.log.emit(msg)
-                self.progress.emit(pct)
-
-            pipeline.run(api_url=self.api_url, n_requests=self.n_requests)
-
-            for pct, msg in steps[2:]:
-                self.log.emit(msg)
-                self.progress.emit(pct)
+            pipeline.run(
+                api_url=self.api_url,
+                n_requests=self.n_requests,
+                progress_callback=self.progress.emit,
+                log_callback=self.log.emit,
+            )
 
             self.log.emit("Pipeline completed successfully.")
             self.finished_ok.emit()

@@ -19,6 +19,22 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("ingestion")
 
 DEFAULT_TIMEOUT = 5
+REQUIRED_KEYS = ("requests", "offers", "evaluations", "orders", "order_changes")
+
+
+def validate_dataset(dataset):
+    """Validate the top-level shape before data reaches the warehouse."""
+    if not isinstance(dataset, dict):
+        raise ValueError("Dataset must be a mapping of table names to row lists")
+    missing = [key for key in REQUIRED_KEYS if key not in dataset]
+    if missing:
+        raise ValueError(f"Dataset is missing required keys: {', '.join(missing)}")
+    for key in REQUIRED_KEYS:
+        if not isinstance(dataset[key], list):
+            raise ValueError(f"Dataset field '{key}' must be a list")
+        if any(not isinstance(row, dict) for row in dataset[key]):
+            raise ValueError(f"Dataset field '{key}' must contain objects")
+    return dataset
 
 
 def fetch_from_api(base_url):
@@ -39,7 +55,11 @@ def fetch_from_api(base_url):
         resp = requests.get(url, timeout=DEFAULT_TIMEOUT)
         resp.raise_for_status()
         dataset[key] = resp.json()
-    return dataset
+    return validate_dataset({
+        **dataset,
+        "orders": [],
+        "order_changes": [],
+    })
 
 
 def load_data(base_url=None, n_requests=180):
@@ -51,14 +71,11 @@ def load_data(base_url=None, n_requests=180):
             log.info("Attempting live ingestion from %s", base_url)
             partial = fetch_from_api(base_url)
             log.info("Live ingestion succeeded: %s", {k: len(v) for k, v in partial.items()})
-            # Live public API doesn't expose orders/order_changes, so those
-            # come from the synthetic generator to keep downstream analytics complete.
-            synthetic = generate_dataset(n_requests=n_requests)
-            partial["orders"] = synthetic["orders"]
-            partial["order_changes"] = synthetic["order_changes"]
-            return partial
-        except (requests.RequestException, ValueError) as exc:
+            # Do not mix synthetic orders with live requests: generated foreign
+            # keys and KPI values would be unrelated to the live source.
+            return validate_dataset({**partial, "orders": [], "order_changes": []})
+        except (requests.RequestException, ValueError, TypeError) as exc:
             log.warning("Live ingestion failed (%s). Falling back to synthetic dataset.", exc)
 
     log.info("Using synthetic dataset (n_requests=%d)", n_requests)
-    return generate_dataset(n_requests=n_requests)
+    return validate_dataset(generate_dataset(n_requests=n_requests))

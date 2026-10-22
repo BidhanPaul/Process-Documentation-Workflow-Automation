@@ -5,18 +5,21 @@ import sqlite3
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_DIR = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_DIR))
 
 from analytics import (
     load_frames, request_status_breakdown, approval_rate, cycle_times,
     provider_performance, order_change_summary, sla_breaches,
     monthly_volume, department_breakdown,
+    data_quality_report,
 )
 
-DB_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output", "process.db")
-XLSX_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output", "IT_Process_KPI_Report.xlsx")
-SUMMARY_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "output", "stakeholder_summary.md")
+DB_PATH = str(PROJECT_DIR / "output" / "process.db")
+XLSX_PATH = str(PROJECT_DIR / "output" / "IT_Process_KPI_Report.xlsx")
+SUMMARY_PATH = str(PROJECT_DIR / "output" / "stakeholder_summary.md")
 
 
 @dataclass
@@ -33,6 +36,7 @@ class AppState:
     breaches_df: object = None
     monthly_df: object = None
     dept_df: object = None
+    quality: dict = field(default_factory=dict)
 
 
 def load_state() -> AppState:
@@ -54,6 +58,7 @@ def load_state() -> AppState:
         state.breaches_df = sla_breaches(req_with_times)
         state.monthly_df = monthly_volume(frames)
         state.dept_df = department_breakdown(conn)
+        state.quality = data_quality_report(frames)
         state.loaded = True
         mtime = os.path.getmtime(DB_PATH)
         state.last_run = datetime.fromtimestamp(mtime).strftime("%d %b %Y, %H:%M")
