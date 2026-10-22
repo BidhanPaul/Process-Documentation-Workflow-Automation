@@ -4,7 +4,8 @@ process governance review."""
 from datetime import datetime
 
 
-def generate_summary(frames, status_df, approval_df, cycle_df, provider_df, change_df, breaches_df, output_path):
+def generate_summary(frames, status_df, approval_df, cycle_df, provider_df,
+                     change_df, breaches_df, output_path, quality=None):
     total_requests = len(frames["requests"])
     total_offers = len(frames["offers"])
     total_orders = len(frames["orders"])
@@ -57,6 +58,17 @@ def generate_summary(frames, status_df, approval_df, cycle_df, provider_df, chan
             )
     else:
         lines.append("- No SLA breaches detected in the review-to-approval stage this period.")
+    lines.append("")
+
+    lines.append("## Data Quality")
+    quality = quality or {"total_warnings": 0}
+    if quality["total_warnings"]:
+        lines.append(f"- **{quality['total_warnings']}** data-quality warnings require review.")
+        for key, value in quality.items():
+            if key != "total_warnings" and value:
+                lines.append(f"  - {key.replace('_', ' ').title()}: {value}")
+    else:
+        lines.append("- No referential-integrity or required-date warnings detected.")
     lines.append("")
 
     lines.append("## Provider Performance")
