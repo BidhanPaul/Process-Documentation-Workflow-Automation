@@ -14,6 +14,17 @@ class PandasTableModel(QAbstractTableModel):
         self._df = df
         self.endResetModel()
 
+    def sort(self, column, order=Qt.AscendingOrder):
+        if self._df is None or self._df.empty:
+            return
+        self.layoutAboutToBeChanged.emit()
+        name = self._df.columns[column]
+        ascending = order == Qt.AscendingOrder
+        self._df = self._df.sort_values(
+            by=name, ascending=ascending, na_position="last", kind="stable"
+        ).reset_index(drop=True)
+        self.layoutChanged.emit()
+
     def rowCount(self, parent=QModelIndex()):
         return 0 if self._df is None else len(self._df)
 

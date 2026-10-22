@@ -7,8 +7,8 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QStackedWidget, QFrame, QTableView, QLineEdit, QSizePolicy, QProgressBar,
-    QPlainTextEdit, QSpacerItem, QHeaderView, QMessageBox, QGridLayout,
+    QStackedWidget, QFrame, QTableView, QLineEdit, QProgressBar,
+    QPlainTextEdit, QHeaderView, QMessageBox, QGridLayout,
 )
 
 from theme import STYLESHEET, BLUE, TEAL, AMBER, PURPLE, GREEN, NAVY
@@ -87,11 +87,19 @@ class TablePage(QWidget):
         header_row.addLayout(title_box)
         header_row.addStretch()
 
+        self.result_count = QLabel("0 records")
+        self.result_count.setObjectName("MutedLabel")
+        header_row.addWidget(self.result_count)
+
         self.search = QLineEdit()
         self.search.setObjectName("SearchBox")
-        self.search.setPlaceholderText("Filter...")
-        self.search.setFixedWidth(220)
+        self.search.setPlaceholderText("Search all columns...")
+        self.search.setFixedWidth(240)
         header_row.addWidget(self.search)
+        clear = QPushButton("Clear")
+        clear.setObjectName("QuietButton")
+        clear.clicked.connect(self.search.clear)
+        header_row.addWidget(clear)
         layout.addLayout(header_row)
 
         self.table = QTableView()
@@ -111,11 +119,13 @@ class TablePage(QWidget):
         self.proxy.setSourceModel(self.model)
         self.proxy.setFilterCaseSensitivity(Qt.CaseInsensitive)
         self.proxy.setFilterKeyColumn(-1)
+        self.proxy.setSortRole(Qt.UserRole)
         self.table.setModel(self.proxy)
         self.search.textChanged.connect(self.proxy.setFilterFixedString)
 
     def set_dataframe(self, df):
         self.model.set_dataframe(df)
+        self.result_count.setText(f"{len(df):,} records")
         self.table.resizeColumnsToContents()
 
 
@@ -128,6 +138,14 @@ class MainWindow(QMainWindow):
 
         self.state = load_state()
         self.worker = None
+        self._page_titles = {
+            "dashboard": "Overview",
+            "requests": "Service Requests",
+            "orders": "Orders",
+            "providers": "Provider Performance",
+            "changes": "Change Requests",
+            "reports": "Reports & Activity",
+        }
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -163,9 +181,9 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        title = QLabel("ITSM Cockpit")
+        title = QLabel("NORTHSTAR")
         title.setObjectName("SidebarTitle")
-        subtitle = QLabel("Process Governance & Analytics")
+        subtitle = QLabel("ITSM PROCESS COCKPIT")
         subtitle.setObjectName("SidebarSubtitle")
         layout.addWidget(title)
         layout.addWidget(subtitle)
@@ -181,6 +199,9 @@ class MainWindow(QMainWindow):
             self.nav_buttons[key] = btn
 
         layout.addStretch()
+        footer = QLabel("Operational intelligence\nv1.0  •  Local workspace")
+        footer.setObjectName("SidebarFooter")
+        layout.addWidget(footer)
         return sidebar
 
     def _select_nav(self, key):
@@ -188,6 +209,7 @@ class MainWindow(QMainWindow):
             btn.setChecked(k == key)
         if key in self.pages:
             self.stack.setCurrentWidget(self.pages[key])
+            self.top_title.setText(self._page_titles.get(key, "Process Cockpit"))
 
     # ---------------- Top bar ----------------
     def _build_topbar(self):
@@ -204,7 +226,7 @@ class MainWindow(QMainWindow):
         layout.addStretch()
 
         self.status_label = QLabel(f"Last run: {self.state.last_run}")
-        self.status_label.setObjectName("StatusLabel")
+        self.status_label.setObjectName("StatusPill")
         layout.addWidget(self.status_label)
 
         self.progress = QProgressBar()
@@ -249,9 +271,21 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(28, 24, 28, 24)
         layout.setSpacing(18)
 
-        t = QLabel("Process KPI Dashboard")
-        t.setObjectName("PageTitle")
-        layout.addWidget(t)
+        hero = QFrame()
+        hero.setObjectName("HeroCard")
+        hero_layout = QVBoxLayout(hero)
+        hero_layout.setContentsMargins(24, 20, 24, 20)
+        hero_layout.setSpacing(5)
+        eyebrow = QLabel("PROCESS GOVERNANCE / LIVE SNAPSHOT")
+        eyebrow.setObjectName("Eyebrow")
+        title = QLabel("Know where your process stands.")
+        title.setObjectName("HeroTitle")
+        subtitle = QLabel("Monitor intake, approvals, providers, and control exceptions from one calm workspace.")
+        subtitle.setObjectName("HeroSubtitle")
+        hero_layout.addWidget(eyebrow)
+        hero_layout.addWidget(title)
+        hero_layout.addWidget(subtitle)
+        layout.addWidget(hero)
 
         self.tile_grid = QGridLayout()
         self.tile_grid.setSpacing(14)
@@ -266,6 +300,12 @@ class MainWindow(QMainWindow):
         self.status_layout = QVBoxLayout(self.status_card)
         self.status_layout.setContentsMargins(16, 12, 16, 12)
         layout.addWidget(self.status_card)
+
+        self.health_card = QFrame()
+        self.health_card.setObjectName("InsightCard")
+        self.health_layout = QHBoxLayout(self.health_card)
+        self.health_layout.setContentsMargins(18, 14, 18, 14)
+        layout.addWidget(self.health_card)
 
         layout.addStretch()
         return page
@@ -407,6 +447,26 @@ class MainWindow(QMainWindow):
                 )
                 warning.setStyleSheet("color:#D0271D; font-weight:600;")
                 self.status_layout.addWidget(warning)
+
+        self._clear_layout(self.health_layout)
+        if state.loaded:
+            quality_warnings = state.quality.get("total_warnings", 0)
+            breaches = len(state.breaches_df)
+            cycle = state.cycle_df.dropna(subset=["avg_days"])
+            cycle_text = f"{cycle['avg_days'].mean():.1f} days" if not cycle.empty else "—"
+            health_title = QLabel("Operational health")
+            health_title.setObjectName("CardTitle")
+            health_text = QLabel(
+                f"{'Review required' if quality_warnings or breaches else 'Healthy baseline'}  ·  "
+                f"{breaches} SLA breaches  ·  {quality_warnings} data warnings"
+            )
+            health_text.setObjectName("MutedLabel")
+            cycle_label = QLabel(f"Average stage time\n{cycle_text}")
+            cycle_label.setObjectName("InsightValue")
+            self.health_layout.addWidget(health_title)
+            self.health_layout.addWidget(health_text)
+            self.health_layout.addStretch()
+            self.health_layout.addWidget(cycle_label)
 
         if state.loaded:
             self.pages["requests"].set_dataframe(state.frames["requests"])
